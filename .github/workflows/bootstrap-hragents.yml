@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  unpack-source:
+  migrate-source:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,14 +18,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Rebuild source archive
+      - name: Rebuild migration diff
         shell: bash
         run: |
           set -euo pipefail
-          cat .bootstrap/part-*.b64 | base64 --decode > /tmp/hragents-source.zip
-          rm -rf /tmp/hragents-source
-          mkdir -p /tmp/hragents-source
-          unzip -q /tmp/hragents-source.zip -d /tmp/hragents-source
+          cat .bootstrap/diff-*.b64 | base64 --decode > /tmp/hragents-diff-bundle.tgz
+          rm -rf /tmp/hragents-diff /tmp/hragents-base
+          mkdir -p /tmp/hragents-diff /tmp/hragents-base
+          tar -xzf /tmp/hragents-diff-bundle.tgz -C /tmp/hragents-diff
+          unzip -q wenshu-project.zip -d /tmp/hragents-base
+
+      - name: Apply HR migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hragents-base/wenshu-project
+          git apply --whitespace=nowarn /tmp/hragents-diff/hragents-text.patch
+          while IFS= read -r path; do
+            [ -z "$path" ] || rm -rf -- "$path"
+          done < /tmp/hragents-diff/hragents-delete.txt
 
       - name: Replace repository source
         shell: bash
@@ -36,9 +47,12 @@ jobs:
             ! -name '.github' \
             ! -name '.bootstrap' \
             -exec rm -rf {} +
-          rsync -a /tmp/hragents-source/ ./
+          rsync -a /tmp/hragents-base/wenshu-project/ ./
           rm -f wenshu-project.zip
           rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap-hragents.yml
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
 
       - name: Commit migrated HR platform
         shell: bash
