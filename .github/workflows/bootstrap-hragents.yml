@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - '.bootstrap/READY'
+  issues:
+    types: [opened]
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   migrate-source:
+    if: github.event_name == 'push' || github.event.issue.title == '[bootstrap] migrate HRAgents source'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
