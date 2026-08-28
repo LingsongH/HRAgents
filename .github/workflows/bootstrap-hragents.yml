@@ -1,0 +1,54 @@
+name: Bootstrap HRAgents source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.bootstrap/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/part-*.b64 | base64 --decode > /tmp/hragents-source.zip
+          rm -rf /tmp/hragents-source
+          mkdir -p /tmp/hragents-source
+          unzip -q /tmp/hragents-source.zip -d /tmp/hragents-source
+
+      - name: Replace repository source
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.git' \
+            ! -name '.github' \
+            ! -name '.bootstrap' \
+            -exec rm -rf {} +
+          rsync -a /tmp/hragents-source/ ./
+          rm -f wenshu-project.zip
+          rm -rf .bootstrap
+
+      - name: Commit migrated HR platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'HRAgents Migration Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Migrate to enterprise HR trusted agent platform'
+          git push origin HEAD:main
